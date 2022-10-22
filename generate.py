@@ -30,7 +30,7 @@ def validate_theme(theme: str):
 
         img = cv2.imread(img_path)
         if img.shape[0] != PIXEL_SIZE or img.shape[1] != PIXEL_SIZE:
-            return False , "image '{}.png' has incorrect dimensions ({}, {}), image should have dimensions ({}, {})".format(img.shape[0], img.shape[1], PIXEL_SIZE, PIXEL_SIZE)
+            return False , "image '{}.png' in theme '{}' has incorrect dimensions ({}, {}), image should have dimensions ({}, {})".format(i, theme, img.shape[0], img.shape[1], PIXEL_SIZE, PIXEL_SIZE)
 
     return True, ""
 
