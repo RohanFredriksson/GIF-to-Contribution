@@ -3,23 +3,25 @@ import sys
 import cv2
 import os
 
-DEFAULT_THEME = "light"
-GRID_SPACING = 8
 COLUMNS = 53
+PIXEL_SIZE = 11
+PIXEL_SPACING = 8
+
+DEFAULT_THEME = "light"
 
 def validate_video(video: str):
 
     if not os.path.exists(video):
         return False, "video '" + video + " could not be found"
 
-    return True, None
+    return True, ""
 
 def validate_theme(theme: str):
 
     if not os.path.isdir("./themes/" + theme):
         return False, "theme '" + theme + "' could not be found"
 
-    return True, None
+    return True, ""
 
 def main():
     
@@ -50,6 +52,7 @@ def main():
         print(sys.argv[0] + ": " + reason)
         return
 
+    width = (PIXEL_SIZE * COLUMNS) + (PIXEL_SPACING * (COLUMNS - 1))
     
 
 if __name__ == '__main__':
