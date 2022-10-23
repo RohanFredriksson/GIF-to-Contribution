@@ -10,19 +10,96 @@ PIXEL_SPACING = 8
 THEME_STEPS = 5
 DEFAULT_THEME = "light"
 
-def validate_video(video: str):
+class Video:
 
-    if not os.path.exists(video):
-        return False, "video '{}' could not be found".format(video)
+    def __init__(self, name: str):
+        
+        self.name = name
 
-    return True, ""
+        if name.endswith(".mp4"):
+            
+            cap = cv2.VideoCapture(name)
+            _, frame = cap.read()
+
+            # Get video info
+            self.type = "mp4"
+            self.width = frame.shape[1]
+            self.height = frame.shape[0]
+            self.aspect_ratio = self.width / self.height
+
+            # Get the fps of the video
+            major_ver, minor_ver, subminor_ver = (cv2.__version__).split('.')
+            if int(major_ver) < 3:
+                self.fps = cap.get(cv2.cv.CV_CAP_PROP_FPS)
+            else:
+                self.fps = cap.get(cv2.CAP_PROP_FPS)
+            self.mspf = (1 / self.fps) * 1000
+
+            cap.release()
+
+        elif name.endswith(".gif"):            
+            
+            # Get gif info
+            self.type = "gif"
+
+        else:
+            raise Exception
+
+    def __iter__(self):
+        return VideoIterator(self)
+
+    def validate(name: str):
+
+        if not os.path.exists(name):
+            return False, "video '{}' could not be found".format(name)
+
+        if name.endswith(".mp4"):
+
+            cap = cv2.VideoCapture(name)
+            if not cap.isOpened():
+                return False, "video '{}' could not be opened".format(name)
+            cap.release()
+
+            return True, ""
+
+        elif name.endswith(".gif"):
+            return True, ""
+
+        return False, "video '{}' is not of a supported format (.mp4, .gif)".format(name)
+
+class VideoIterator:
+
+    def __init__(self, video: Video):
+
+        self.video = video
+
+        if video.type == "mp4":
+            self.capture = cv2.VideoCapture(video.name)
+        elif video.type == "gif":
+            pass
+
+    def __next__(self):
+        
+        # Get the next available frame
+        if self.video.type == "mp4":
+
+            flag, frame = self.capture.read()
+            if not flag:
+                self.capture.release()
+                raise StopIteration
+
+            return frame, self.video.mspf
+
+        elif self.video.type == "gif":
+            pass
+        raise Exception
 
 def validate_theme(theme: str):
 
     if not os.path.isdir("./themes/" + theme):
         return False, "theme '{}' could not be found".format(theme)
 
-    for i in THEME_STEPS:
+    for i in range(THEME_STEPS):
 
         img_path = "./themes/{}/{}.png".format(theme, i)
         if not os.path.exists(img_path):
@@ -38,6 +115,7 @@ def main():
     
     theme = DEFAULT_THEME
     video = None
+    video_name = None
 
     # Video argument is required.
     if len(sys.argv) < 2:
@@ -45,10 +123,10 @@ def main():
         return
 
     # Store the video argument
-    video = sys.argv[1]
+    video_name = sys.argv[1]
 
     # Ensure that the video is valid.
-    valid, reason = validate_video(video)
+    valid, reason = Video.validate(video_name)
     if not valid:
         print("{}: {}".format(sys.argv[0], reason))
         return
@@ -63,7 +141,21 @@ def main():
         print("{}: {}".format(sys.argv[0], reason))
         return
 
-    width = (PIXEL_SIZE * COLUMNS) + (PIXEL_SPACING * (COLUMNS - 1))
+    # Create the video object
+    video = Video(video_name)
+
+    rows = round(COLUMNS / video.aspect_ratio)
+    contribution_width = (PIXEL_SIZE * COLUMNS) + (PIXEL_SPACING * (COLUMNS - 1))
+    contribution_height = (PIXEL_SIZE * rows) + (PIXEL_SPACING * (rows - 1))
+
+    for frame, duration in video:
+
+        frame = cv2.resize(frame, (COLUMNS, rows), interpolation=cv2.INTER_AREA)
+
+        cv2.imshow("test", frame)
+        if cv2.waitKey(30) & 0xff == ord('q'):
+           break
+    cv2.destroyAllWindows()
     
 
 if __name__ == '__main__':
