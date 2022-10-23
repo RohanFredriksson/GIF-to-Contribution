@@ -89,7 +89,7 @@ class Video:
                 self.fps = cap.get(cv2.cv.CV_CAP_PROP_FPS)
             else:
                 self.fps = cap.get(cv2.CAP_PROP_FPS)
-            self.spf = 1 / self.fps
+            self.spf = 1000 / self.fps
 
             cap.release()
 
@@ -151,7 +151,7 @@ class VideoIterator:
         raise Exception
 
 def main():
-    
+
     theme = None
     video = None
 
@@ -213,12 +213,11 @@ def main():
 
                 contribution_frame.paste(pixel, box=(left, top, right, bottom))
 
-        contribution_frame = np.array(contribution_frame)
         frames.append(contribution_frame)
         durations.append(duration)
         a += 1
 
-    imageio.mimsave('tmp.gif', frames, duration=durations, loop=0, subrectangles=True)
+    frames[0].save("tmp.gif", save_all=True, append_images=frames[1:], duration=durations, loop=0, transparency=0)
 
 if __name__ == '__main__':
     main()
