@@ -1,4 +1,6 @@
+from PIL import Image
 import numpy as np
+import imageio
 import cv2
 import sys
 import os
@@ -9,6 +11,60 @@ PIXEL_SPACING = 8
 
 THEME_STEPS = 5
 DEFAULT_THEME = "light"
+
+class Theme:
+
+    def __init__(self, name: str):
+        
+        self.name = name
+        self.images = []
+        self.values = []
+        self.cache = {}
+
+        for i in range(THEME_STEPS):
+
+            img = cv2.imread("./themes/{}/{}.png".format(name, i))
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(img)
+            self.images.append(img)
+            self.values.append(min(i * 64, 255))
+
+    def get_closest_image(self, value: int):
+
+        if value in self.cache:
+            return self.cache[value]
+
+        closest_distance = float('inf')
+        closest_value = None
+        closest_img = None
+        for i in range(len(self.values)):
+
+            distance = abs(value - self.values[i])
+            if distance < closest_distance:
+                closest_distance = distance
+                closest_value = self.values[i]
+                closest_img = self.images[i]
+        
+        self.cache[closest_value] = closest_img
+        return closest_img
+
+        
+    def validate(name: str):
+
+        if not os.path.isdir("./themes/{}".format(name)):
+            return False, "theme '{}' could not be found".format(name)
+
+        for i in range(THEME_STEPS):
+
+            img_path = "./themes/{}/{}.png".format(name, i)
+            if not os.path.exists(img_path):
+                return False , "image '{}.png' could not be found in theme '{}'".format(i, name)
+
+            img = cv2.imread(img_path)
+            if img.shape[0] != PIXEL_SIZE or img.shape[1] != PIXEL_SIZE:
+                return False , "image '{}.png' in theme '{}' has incorrect dimensions ({}, {}), image should have dimensions ({}, {})".format(i, name, img.shape[0], img.shape[1], PIXEL_SIZE, PIXEL_SIZE)
+
+        return True, ""
 
 class Video:
 
@@ -33,7 +89,7 @@ class Video:
                 self.fps = cap.get(cv2.cv.CV_CAP_PROP_FPS)
             else:
                 self.fps = cap.get(cv2.CAP_PROP_FPS)
-            self.mspf = (1 / self.fps) * 1000
+            self.spf = 1 / self.fps
 
             cap.release()
 
@@ -63,7 +119,7 @@ class Video:
             return True, ""
 
         elif name.endswith(".gif"):
-            return True, ""
+            return False, ".gif format is not supported yet"
 
         return False, "video '{}' is not of a supported format (.mp4, .gif)".format(name)
 
@@ -88,33 +144,18 @@ class VideoIterator:
                 self.capture.release()
                 raise StopIteration
 
-            return frame, self.video.mspf
+            return frame, self.video.spf
 
         elif self.video.type == "gif":
             pass
         raise Exception
 
-def validate_theme(theme: str):
-
-    if not os.path.isdir("./themes/" + theme):
-        return False, "theme '{}' could not be found".format(theme)
-
-    for i in range(THEME_STEPS):
-
-        img_path = "./themes/{}/{}.png".format(theme, i)
-        if not os.path.exists(img_path):
-            return False , "image '{}.png' could not be found in theme '{}'".format(i, theme)
-
-        img = cv2.imread(img_path)
-        if img.shape[0] != PIXEL_SIZE or img.shape[1] != PIXEL_SIZE:
-            return False , "image '{}.png' in theme '{}' has incorrect dimensions ({}, {}), image should have dimensions ({}, {})".format(i, theme, img.shape[0], img.shape[1], PIXEL_SIZE, PIXEL_SIZE)
-
-    return True, ""
-
 def main():
     
-    theme = DEFAULT_THEME
+    theme = None
     video = None
+
+    theme_name = DEFAULT_THEME
     video_name = None
 
     # Video argument is required.
@@ -133,30 +174,51 @@ def main():
 
     # See if the user inputted a theme.
     if len(sys.argv) > 2:
-        theme = sys.argv[2]
+        theme_name = sys.argv[2]
 
     # Ensure that the theme is valid.
-    valid, reason = validate_theme(theme)
+    valid, reason = Theme.validate(theme_name)
     if not valid:
         print("{}: {}".format(sys.argv[0], reason))
         return
 
-    # Create the video object
+    theme = Theme(theme_name)
     video = Video(video_name)
 
     rows = round(COLUMNS / video.aspect_ratio)
     contribution_width = (PIXEL_SIZE * COLUMNS) + (PIXEL_SPACING * (COLUMNS - 1))
     contribution_height = (PIXEL_SIZE * rows) + (PIXEL_SPACING * (rows - 1))
 
+    frames = []
+    durations = []
+
+    a = 0
     for frame, duration in video:
 
-        frame = cv2.resize(frame, (COLUMNS, rows), interpolation=cv2.INTER_AREA)
+        print(a)
 
-        cv2.imshow("test", frame)
-        if cv2.waitKey(30) & 0xff == ord('q'):
-           break
-    cv2.destroyAllWindows()
-    
+        frame = cv2.resize(frame, (COLUMNS, rows), interpolation=cv2.INTER_AREA)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        contribution_frame = Image.new(mode="RGBA", size=(contribution_width, contribution_height))
+        for i in range(rows):
+            for j in range(COLUMNS):
+
+                pixel = theme.get_closest_image(gray[i][j])
+
+                top = i * (PIXEL_SIZE + PIXEL_SPACING)
+                bottom = top + PIXEL_SIZE
+                left = j * (PIXEL_SIZE + PIXEL_SPACING)
+                right = left + PIXEL_SIZE
+
+                contribution_frame.paste(pixel, box=(left, top, right, bottom))
+
+        contribution_frame = np.array(contribution_frame)
+        frames.append(contribution_frame)
+        durations.append(duration)
+        a += 1
+
+    imageio.mimsave('tmp.gif', frames, duration=durations, loop=0, subrectangles=True)
 
 if __name__ == '__main__':
     main()
