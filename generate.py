@@ -1,4 +1,5 @@
 from PIL import Image
+import argparse
 import numpy as np
 import imageio
 import cv2
@@ -11,6 +12,7 @@ PIXEL_SPACING = 8
 
 THEME_STEPS = 5
 DEFAULT_THEME = "light"
+DEFAULT_OUTPUT = "contribution.gif"
 
 class Theme:
 
@@ -158,6 +160,8 @@ def main():
     theme_name = DEFAULT_THEME
     video_name = None
 
+    output = DEFAULT_OUTPUT
+
     # Video argument is required.
     if len(sys.argv) < 2:
         print("{}: missing file arguments".format(sys.argv[0]))
@@ -217,7 +221,7 @@ def main():
         durations.append(duration)
         a += 1
 
-    frames[0].save("tmp.gif", save_all=True, append_images=frames[1:], duration=durations, loop=0, transparency=0)
+    frames[0].save(output, save_all=True, append_images=frames[1:], duration=durations, loop=0, transparency=0)
 
 if __name__ == '__main__':
     main()
