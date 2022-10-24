@@ -95,14 +95,20 @@ class Video:
                 self.fps = cap.get(cv2.cv.CV_CAP_PROP_FPS)
             else:
                 self.fps = cap.get(cv2.CAP_PROP_FPS)
-            self.spf = 1000 / self.fps
+            self.mspf = 1000 / self.fps
 
             cap.release()
 
         elif name.endswith(".gif"):            
             
+            gif = Image.open(name)
+
             # Get gif info
             self.type = "gif"
+            self.width, self.height = gif.size
+            self.aspect_ratio = self.width / self.height
+
+            gif = None
 
         else:
             raise Exception
@@ -125,7 +131,16 @@ class Video:
             return True, ""
 
         elif name.endswith(".gif"):
-            return False, ".gif format is not supported yet"
+
+            img = Image.open(name)
+            if img == None:
+                return False, "video '{}' could not be opened".format(name)
+
+            if 'duration' not in img.info:
+                return False, "video '{}' not of .gif format".format(name)
+
+            img = None
+            return True, ""
 
         return False, "video '{}' is not of a supported format (.mp4, .gif)".format(name)
 
@@ -138,7 +153,9 @@ class VideoIterator:
         if video.type == "mp4":
             self.capture = cv2.VideoCapture(video.name)
         elif video.type == "gif":
-            pass
+            self.gif = Image.open(video.name)
+            self.gif.seek(0)
+            self.current_frame = 0
 
     def __next__(self):
         
@@ -150,10 +167,17 @@ class VideoIterator:
                 self.capture.release()
                 raise StopIteration
 
-            return frame, self.video.spf
+            return frame, self.video.mspf
 
         elif self.video.type == "gif":
-            pass
+            
+            try:
+                self.gif.seek(self.current_frame)
+                self.current_frame += 1
+                return np.array(self.gif), self.gif.info['duration']
+            except EOFError:
+                raise StopIteration
+
         raise Exception
 
 def main():
@@ -205,9 +229,13 @@ def main():
 
         print(a)
 
-        # Take the frame, downsize it to the correct size and convert it to grayscale.
+        # Take the frame, downsize it to the correct size.
         frame = cv2.resize(frame, (COLUMNS, rows), interpolation=cv2.INTER_AREA)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Convert the frame to grayscale if it is not grayscale.
+        gray = frame
+        if len(frame.shape) == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Create the new frame to store the contribution gif frame.
         contribution_frame = Image.new(mode="RGBA", size=(contribution_width, contribution_height))
