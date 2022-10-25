@@ -2,7 +2,7 @@ import multiprocessing
 from PIL import Image
 import numpy as np
 import argparse
-import imageio
+import time
 import cv2
 import sys
 import os
@@ -34,7 +34,7 @@ class Theme:
             self.values.append(min(i * 64, 255))
 
         # Map each value 0-255 with an image.
-        for i in range(255):
+        for i in range(256):
 
             # Find the closest grayscale box value for this value.
             closest_distance = float('inf')
@@ -156,12 +156,12 @@ class VideoIterator:
     def __init__(self, video: Video):
 
         self.video = video
-        self.current_frame = 0
 
         if video.type == "mp4":
             self.capture = cv2.VideoCapture(video.name)
         elif video.type == "gif":
             self.gif = Image.open(video.name)
+            self.current_frame = 0
             self.gif.seek(0)
 
     def __next__(self):
@@ -174,22 +174,53 @@ class VideoIterator:
                 self.capture.release()
                 raise StopIteration
 
-            self.current_frame += 1
-            return frame, self.video.mspf, self.current_frame - 1
+            return frame, self.video.mspf
 
         elif self.video.type == "gif":
             
             try:
                 self.gif.seek(self.current_frame)
                 self.current_frame += 1
-                return np.array(self.gif), self.gif.info['duration'], self.current_frame - 1
+                return np.array(self.gif), self.gif.info['duration']
             except EOFError:
                 raise StopIteration
 
         raise Exception
 
-def generate_contribution_frame(frame: np.array):
-    pass
+def generate_contribution_frame(args):
+    
+    frame = args[0]
+    theme = args[1]
+    rows = args[2]
+    contribution_width = args[3]
+    contribution_height = args[4]
+
+    # Take the frame, downsize it to the correct size.
+    frame = cv2.resize(frame, (COLUMNS, rows), interpolation=cv2.INTER_AREA)
+
+    # Convert the frame to grayscale if it is not grayscale.
+    gray = frame
+    if len(frame.shape) == 3:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    # Create the new frame to store the contribution gif frame.
+    contribution_frame = Image.new(mode="RGBA", size=(contribution_width, contribution_height))
+    for i in range(rows):
+        for j in range(COLUMNS):
+
+            # For each pixel in the grayscale, match it to a git contribution box.
+            pixel = theme.get_closest_image(gray[i][j])
+
+            # Find the bounding box to paste the contribution box into.
+            top = i * (PIXEL_SIZE + PIXEL_SPACING)
+            bottom = top + PIXEL_SIZE
+            left = j * (PIXEL_SIZE + PIXEL_SPACING)
+            right = left + PIXEL_SIZE
+
+            # Paste the contribution box
+            contribution_frame.paste(pixel, box=(left, top, right, bottom))
+    
+    return contribution_frame
 
 def main():
 
@@ -230,48 +261,33 @@ def main():
     contribution_width = (PIXEL_SIZE * COLUMNS) + (PIXEL_SPACING * (COLUMNS - 1))
     contribution_height = (PIXEL_SIZE * rows) + (PIXEL_SPACING * (rows - 1))
 
-    # Create lists to store image and duration data.
-    frames = []
+    # Create the pool.
+    pool = multiprocessing.Pool()
+
+    # Create lists to store arguments and duration data.
     durations = []
+    args = []
 
     print(video.num_frames)
 
     # Loop through every frame and duration in the video
-    for frame, duration, frame_number in video:
-
-        print(frame_number)
-
-        # Take the frame, downsize it to the correct size.
-        frame = cv2.resize(frame, (COLUMNS, rows), interpolation=cv2.INTER_AREA)
-        
-        # Convert the frame to grayscale if it is not grayscale.
-        gray = frame
-        if len(frame.shape) == 3:
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # Create the new frame to store the contribution gif frame.
-        contribution_frame = Image.new(mode="RGBA", size=(contribution_width, contribution_height))
-        for i in range(rows):
-            for j in range(COLUMNS):
-
-                # For each pixel in the grayscale, match it to a git contribution box.
-                pixel = theme.get_closest_image(gray[i][j])
-
-                # Find the bounding box to paste the contribution box into.
-                top = i * (PIXEL_SIZE + PIXEL_SPACING)
-                bottom = top + PIXEL_SIZE
-                left = j * (PIXEL_SIZE + PIXEL_SPACING)
-                right = left + PIXEL_SIZE
-
-                # Paste the contribution box
-                contribution_frame.paste(pixel, box=(left, top, right, bottom))
-
-        # Add the frame and duration to the list.
-        frames.append(contribution_frame)
+    for frame, duration in video:
+        args.append((frame, theme, rows, contribution_width, contribution_height))
         durations.append(duration)
 
+    contribution_frames = []
+
+    start = time.time()
+    frame_count = 0
+    for result in pool.imap(generate_contribution_frame, args):
+        frame_count+=1
+        contribution_frames.append(result)
+
+    end = time.time()
+    print(end - start)
+    
     # Save all frames as a gif.
-    frames[0].save(output, save_all=True, append_images=frames[1:], duration=durations, loop=0, transparency=0)
+    contribution_frames[0].save(output, save_all=True, append_images=contribution_frames[1:], duration=durations, loop=0, transparency=0)
 
 if __name__ == '__main__':
     main()
