@@ -1,8 +1,8 @@
+from alive_progress import alive_bar
 import multiprocessing
 from PIL import Image
 import numpy as np
 import argparse
-import time
 import cv2
 import sys
 import os
@@ -268,26 +268,25 @@ def main():
     durations = []
     args = []
 
-    print(video.num_frames)
-
     # Loop through every frame and duration in the video
     for frame, duration in video:
         args.append((frame, theme, rows, contribution_width, contribution_height))
         durations.append(duration)
 
     contribution_frames = []
+    print("\nRendering frames...")
+    with alive_bar(video.num_frames) as bar:
+        for result in pool.imap(generate_contribution_frame, args):
+            contribution_frames.append(result)
+            bar()
 
-    start = time.time()
-    frame_count = 0
-    for result in pool.imap(generate_contribution_frame, args):
-        frame_count+=1
-        contribution_frames.append(result)
-
-    end = time.time()
-    print(end - start)
-    
     # Save all frames as a gif.
-    contribution_frames[0].save(output, save_all=True, append_images=contribution_frames[1:], duration=durations, loop=0, transparency=0)
+    print("\nSaving frames to '{}'...".format(output))
+    with alive_bar(0) as bar:
+        contribution_frames[0].save(output, format="GIF", save_all=True, append_images=contribution_frames[1:], duration=durations, loop=0, transparency=0)
+        bar()
+    
+    print("\nDone!")
 
 if __name__ == '__main__':
     main()
