@@ -237,7 +237,7 @@ def main():
     theme = None
     video = None
     video_name = args.input
-    theme_name = args.theme
+    theme_name = args.theme.lower()
     output = args.output
 
     # Ensure that the video is valid.
