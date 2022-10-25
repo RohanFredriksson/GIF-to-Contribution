@@ -18,7 +18,7 @@ Ever wanted to have a cool stylised GIF to put into your GitHub profile README.m
 ```
 git clone https://github.com/RohanFredriksson/GIF-to-Contribution.git
 ```
-3. Get a video that you wish to turn into a contribution graph. Usually black and white videos work best.
+3. Get a video that you wish to turn into a contribution graph. Usually black and white videos work best. The current file formats that are supported are: **.mp4**, **.gif**
 4. Run the python script generate.py. This will create a GIF for your chosen video in your chosen theme.
 ```
 python3 generator.py input [-h] [-t THEME] [-o OUTPUT]
