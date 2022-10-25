@@ -1,6 +1,7 @@
+import multiprocessing
 from PIL import Image
-import argparse
 import numpy as np
+import argparse
 import imageio
 import cv2
 import sys
@@ -21,7 +22,7 @@ class Theme:
         self.name = name
         self.images = []
         self.values = []
-        self.cache = {}
+        self.cache = []
 
         for i in range(THEME_STEPS):
 
@@ -32,28 +33,24 @@ class Theme:
             self.images.append(img)
             self.values.append(min(i * 64, 255))
 
+        # Map each value 0-255 with an image.
+        for i in range(255):
+
+            # Find the closest grayscale box value for this value.
+            closest_distance = float('inf')
+            closest_img = None
+            for j in range(len(self.values)):
+
+                distance = abs(i - self.values[j])
+                if distance < closest_distance:
+                    closest_distance = distance
+                    closest_img = self.images[j]
+
+            self.cache.append(closest_img)
+
     def get_closest_image(self, value: int):
-        
-        # If we have already computed it for this value, return it.
-        if value in self.cache:
-            return self.cache[value]
-
-        # Find the closest grayscale box value for this value.
-        closest_distance = float('inf')
-        closest_value = None
-        closest_img = None
-        for i in range(len(self.values)):
-
-            distance = abs(value - self.values[i])
-            if distance < closest_distance:
-                closest_distance = distance
-                closest_value = self.values[i]
-                closest_img = self.images[i]
-        
-        # Store it in the cache, and return the closest image.
-        self.cache[closest_value] = closest_img
-        return closest_img
-
+        value = max(min(value, 255), 0)
+        return self.cache[value]
         
     def validate(name: str):
 
@@ -88,6 +85,7 @@ class Video:
             self.width = frame.shape[1]
             self.height = frame.shape[0]
             self.aspect_ratio = self.width / self.height
+            self.num_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
             # Get the fps of the video
             major_ver, minor_ver, subminor_ver = (cv2.__version__).split('.')
@@ -107,6 +105,15 @@ class Video:
             self.type = "gif"
             self.width, self.height = gif.size
             self.aspect_ratio = self.width / self.height
+            self.num_frames = 0
+
+            # Count number of frames
+            while True:
+                try:
+                    gif.seek(self.num_frames)
+                    self.num_frames += 1
+                except:
+                    break
 
             gif = None
 
@@ -149,13 +156,13 @@ class VideoIterator:
     def __init__(self, video: Video):
 
         self.video = video
+        self.current_frame = 0
 
         if video.type == "mp4":
             self.capture = cv2.VideoCapture(video.name)
         elif video.type == "gif":
             self.gif = Image.open(video.name)
             self.gif.seek(0)
-            self.current_frame = 0
 
     def __next__(self):
         
@@ -167,18 +174,22 @@ class VideoIterator:
                 self.capture.release()
                 raise StopIteration
 
-            return frame, self.video.mspf
+            self.current_frame += 1
+            return frame, self.video.mspf, self.current_frame - 1
 
         elif self.video.type == "gif":
             
             try:
                 self.gif.seek(self.current_frame)
                 self.current_frame += 1
-                return np.array(self.gif), self.gif.info['duration']
+                return np.array(self.gif), self.gif.info['duration'], self.current_frame - 1
             except EOFError:
                 raise StopIteration
 
         raise Exception
+
+def generate_contribution_frame(frame: np.array):
+    pass
 
 def main():
 
@@ -223,11 +234,12 @@ def main():
     frames = []
     durations = []
 
-    a = 0
-    # Loop through every frame and duration in the video
-    for frame, duration in video:
+    print(video.num_frames)
 
-        print(a)
+    # Loop through every frame and duration in the video
+    for frame, duration, frame_number in video:
+
+        print(frame_number)
 
         # Take the frame, downsize it to the correct size.
         frame = cv2.resize(frame, (COLUMNS, rows), interpolation=cv2.INTER_AREA)
@@ -257,7 +269,6 @@ def main():
         # Add the frame and duration to the list.
         frames.append(contribution_frame)
         durations.append(duration)
-        a += 1
 
     # Save all frames as a gif.
     frames[0].save(output, save_all=True, append_images=frames[1:], duration=durations, loop=0, transparency=0)
