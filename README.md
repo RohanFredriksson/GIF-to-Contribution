@@ -2,7 +2,7 @@
 
 ## Description
 
-Ever wanted to have a cool stylised GIF to put into your GitHub profile README.md files? Well I did! So I created a program that takes any video and creates GIF inspired by the GitHub contribution graph.
+Ever wanted to have a cool stylised GIF to put into your GitHub profile README.md files? Well I did! So I created a program that takes any video and creates GIF inspired by the GitHub contribution graph. Also if you want to see a really cool example of this check out my [profile](https://github.com/RohanFredriksson).
 
 ## Dependencies
 
