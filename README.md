@@ -32,10 +32,10 @@ This makes sure that the GIF that is shown matches the current theme of the user
 
 ## Themes
 Currently the only supported GitHub themes are:
- - Light
- - Dark
- - HalloweenLight
- - HalloweenDark
+ - **Light**
+ - **Dark**
+ - **HalloweenLight**
+ - **HalloweenDark**
 
 ## Examples
 
