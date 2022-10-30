@@ -34,8 +34,8 @@ This makes sure that the GIF that is shown matches the current theme of the user
 Currently the only supported GitHub themes are:
  - Light
  - Dark
-
-When Halloween rolls around this year, I might be able to add the Halloween themes as well.
+ - HalloweenLight
+ - HalloweenDark
 
 ## Examples
 
